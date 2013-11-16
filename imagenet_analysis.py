@@ -64,17 +64,24 @@ class ImageNetData(object):
      Images are handles using their id, which is the number in the file name.
      These are non-concecutive and therefore called id/imgid.
      """
-    def __init__(self, meta_path, image_path=None, annotation_path=None, bow_path=None):
+    def __init__(self, meta_path, image_path=None, annotation_path=None, bow_path=None, ilsvrcyear='2010'):
         self.image_path = image_path
         self.annotation_path = annotation_path
         self.meta_path = meta_path
         self.meta_data = loadmat(os.path.join(meta_path, "meta.mat"), struct_as_record=False)
         self.bow_path = bow_path
+        self.ilsvrcyear = ilsvrcyear
 
         self.synsets = np.squeeze(self.meta_data['synsets'])
 
         #['ILSVRC2010_ID', 'WNID', 'words', 'gloss', 'num_children', 'children', 'wordnet_height', 'num_train_images']
-        self.ids = np.squeeze(np.array([x.ILSVRC2010_ID for x in self.synsets]))
+        if self.ilsvrcyear == '2012':
+          self.ids = np.squeeze(np.array([x.ILSVRC2012_ID for x in self.synsets]))
+        elif self.ilsvrcyear == '2011':
+          self.ids = np.squeeze(np.array([x.ILSVRC2011_ID for x in self.synsets]))
+        else:
+          self.ids = np.squeeze(np.array([x.ILSVRC2010_ID for x in self.synsets]))
+
         self.wnids = np.squeeze(np.array([x.WNID for x in self.synsets]))
         self.word = np.squeeze(np.array([x.words for x in self.synsets]))
         self.num_children = np.squeeze(np.array([x.num_children for x in self.synsets]))
@@ -181,7 +188,7 @@ class ImageNetData(object):
         return all_bbs;
 
     def load_val_labels(self):
-        return np.loadtxt(os.path.join(self.meta_path, "ILSVRC2010_validation_ground_truth.txt"))
+        return np.loadtxt(os.path.join(self.meta_path, "ILSVRC%s_validation_ground_truth.txt" % (self.ilsvrcyear)))
 
     def load_bow(self, dataset="train"):
         """Get bow representation of dataset ``dataset``.
