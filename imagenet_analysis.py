@@ -91,6 +91,9 @@ class ImageNetData(object):
         self.num_children = np.squeeze(np.array([x.num_children for x in self.synsets]))
         self.children_ids = [(np.squeeze(x.children).astype(np.int)) for x in self.synsets]
 
+    def wnid_from_class_idx ( self, classidx ):
+        return self.wnids[classidx]
+
     def description_from_class_idx ( self, classidx ):
         return self.word[classidx]
 
