@@ -61,8 +61,8 @@ class ImageNetData(object):
 
      Synsets are always handled using their index in the 'synsets' dict. This
      is their id-1 and is referred to as classidx.
-     Images are handles using their id, which is the number in the file name.
-     These are non-concecutive and therefore called id/imgid.
+     Images are handles using their image id, which is the number in the file name.
+     These are non-concecutive and therefore called imgid.
      """
     def __init__(self, meta_path, image_path=None, annotation_path=None, bow_path=None, ilsvrcyear='2010'):
         self.image_path = image_path
@@ -82,38 +82,44 @@ class ImageNetData(object):
         else:
           self.ids = np.squeeze(np.array([x.ILSVRC2010_ID for x in self.synsets]))
 
+        self.idx = {}
+        for index, id in np.ndenumerate(self.ids):
+          self.idx[id] = index[0]
+
         self.wnids = np.squeeze(np.array([x.WNID for x in self.synsets]))
         self.word = np.squeeze(np.array([x.words for x in self.synsets]))
         self.num_children = np.squeeze(np.array([x.num_children for x in self.synsets]))
-        self.children = [np.squeeze(x.children).astype(np.int) for x in self.synsets]
+        self.children_ids = [(np.squeeze(x.children).astype(np.int)) for x in self.synsets]
 
-    def img_path_from_id(self, classidx, imgidx):
+    def description_from_class_idx ( self, classidx ):
+        return self.word[classidx]
+
+    def imagenet_id_from_class_idx ( self, classidx ):
+        return self.ids[ classidx ]
+
+    def img_path_from_imgid(self, classidx, imgid):
         wnid = self.wnids[classidx]
-        return os.path.join(self.image_path, wnid, wnid+'_'+imgidx+".JPEG")
+        return os.path.join(self.image_path, wnid, wnid+'_'+imgid+".JPEG")
 
     def class_idx_from_string(self, search_string):
         """Get class index from string in class name."""
         indices = np.where([search_string in x[2][0] for x in self.synsets])[0]
-        for i in indices:
-            print(self.synsets[i])
         return indices
 
-    def get_children(self, aclass):
+    def get_leafs(self, classidx):
         """Traverse tree to the leafes. Takes classidx, returns
-        list of all recursive chilren of this class."""
+        list of all leafs corresponding to the class."""
 
+        if self.num_children[classidx] == 0:
+          return [ classidx ]
+
+        rchildren = []
         # minus one converts ids into indices in our arrays
-        children = self.synsets[aclass][5][0] - 1
+        children_ids = self.children_ids[classidx]
 
-        print(self.synsets[aclass])
-        rchildren = children.tolist()
+        for child_id in np.nditer(children_ids):
+          rchildren.extend( self.get_leafs( self.idx[ int(child_id) ] ) )
 
-        print "-----------------"
-        for child in children:
-            print self.synsets[child]
-            # recurse
-            if self.synsets[child][4] != 0:
-                rchildren.extend(self.get_children(child))
         return rchildren
 
     def get_bndbox(self, classidx, imageid):
@@ -131,8 +137,9 @@ class ImageNetData(object):
         #[xmin, ymin, xmax, ymax] = [it.text for it in bndbox]
         return result
 
-    def get_image_ids(self, theclass):
-        wnid = self.wnids[theclass]
+    def get_image_ids(self, classidx):
+        wnid = self.wnids[classidx]
+        
         files = glob(os.path.join(self.image_path,wnid,wnid+"*"))
         filenames = [os.path.basename(f)[:-5] for f in files]
         numbers = map(lambda f: f.split("_")[1], filenames)
@@ -144,7 +151,6 @@ class ImageNetData(object):
 
         if not os.path.exists("output/bounding_box"):
             os.mkdir("output/bounding_box")
-        #class_string = self.word[classidx]
         wnid = self.wnids[classidx]
         if not os.path.exists(os.path.join("output/bounding_box", wnid)):
             os.mkdir(os.path.join("output/bounding_box", wnid))
@@ -159,7 +165,7 @@ class ImageNetData(object):
                 #print("no xml found")
                 continue
             bbfiles.append(imgid)
-            img_path = self.img_path_from_id(classidx, imgid)
+            img_path = self.img_path_from_imgid(classidx, imgid)
             out_path = str(os.path.join("output/bounding_box", wnid, wnid+'_'+imgid+".png"))
             draw_bounding_boxes(img_path, bounding_boxes, out_path)
             #if len(bbfiles)>2:
@@ -183,7 +189,7 @@ class ImageNetData(object):
                 #no bounding box
                 #print("no xml found")
                 continue
-            f = self.img_path_from_id(classidx, imgid)
+            f = self.img_path_from_imgid(classidx, imgid)
             all_bbs.extend(grab_bounding_boxes(f, img_bbs))
         return all_bbs;
 
